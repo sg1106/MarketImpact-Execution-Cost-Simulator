@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Market Impact Simulator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.32.0/plotly.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ════════════════ SIDEBAR ════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-title">⚙ EXECUTION PARAMETERS</div>
+
+    <div class="field">
+      <label for="orderSize">Order Size (shares)</label>
+      <input type="number" id="orderSize" min="1" step="1000" value="100000">
+    </div>
+
+    <div class="field">
+      <label for="adv">Avg Daily Volume (ADV)</label>
+      <input type="number" id="adv" min="1" step="10000" value="1000000">
+    </div>
+
+    <div class="field">
+      <label for="participation">Participation Rate (%)</label>
+      <div class="slider-row">
+        <input type="range" id="participation" min="1" max="100" value="10">
+        <span class="slider-val" id="participationVal">10%</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="volatility">Daily Volatility (%)</label>
+      <input type="number" id="volatility" min="0.01" step="0.01" value="2.0">
+    </div>
+
+    <div class="field">
+      <label for="riskAversion">Risk Aversion (λ)</label>
+      <div class="slider-row">
+        <input type="range" id="riskAversion" min="0" max="10" value="2">
+        <span class="slider-val" id="riskAversionVal">2</span>
+      </div>
+    </div>
+
+    <hr>
+    <div class="section-label">Simulation</div>
+
+    <div class="field">
+      <label for="strategy">Execution Strategy</label>
+      <select id="strategy">
+        <option value="AC">AC</option>
+        <option value="TWAP">TWAP</option>
+        <option value="VWAP">VWAP</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="nPaths">Monte Carlo Paths</label>
+      <div class="slider-row">
+        <input type="range" id="nPaths" min="50" max="1000" step="50" value="200">
+        <span class="slider-val" id="nPathsVal">200</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="simSteps">Time Steps</label>
+      <div class="slider-row">
+        <input type="range" id="simSteps" min="50" max="500" step="50" value="100">
+        <span class="slider-val" id="simStepsVal">100</span>
+      </div>
+    </div>
+
+    <hr>
+
+    <div class="field">
+      <label for="surfaceRes">Surface Resolution</label>
+      <div class="slider-row">
+        <input type="range" id="surfaceRes" min="15" max="60" step="5" value="30">
+        <span class="slider-val" id="surfaceResVal">30</span>
+      </div>
+    </div>
+
+    <hr>
+
+    <button id="submitBtn" class="submit-btn">▶ RUN SIMULATION</button>
+    <div id="loadingMsg" class="loading-msg" style="display:none;">Computing…</div>
+  </aside>
+
+  <!-- ════════════════ MAIN ════════════════ -->
+  <main class="main">
+
+    <div class="header">
+      <div class="header-title">MARKET IMPACT SIMULATOR</div>
+      <div class="header-sub">Almgren-Chriss · Kyle Lambda · Three-Fifths Power Law · Monte Carlo</div>
+    </div>
+
+    <!-- KPI BAR -->
+    <div class="kpi-bar">
+      <div class="kpi-card">
+        <div class="kpi-label">Expected Slippage</div>
+        <div class="kpi-value" id="kpiSlippage">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Execution Cost ($)</div>
+        <div class="kpi-value" id="kpiCost">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Impl. Shortfall ($)</div>
+        <div class="kpi-value" id="kpiShortfall">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Risk-Adj. Cost ($)</div>
+        <div class="kpi-value" id="kpiRiskCost">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Impact (bps)</div>
+        <div class="kpi-value" id="kpiBps">—</div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab active" data-tab="tab1">🗺 3D Surface &amp; Heatmap</button>
+      <button class="tab" data-tab="tab2">📈 Price Path Simulation</button>
+      <button class="tab" data-tab="tab3">🔬 Model Analysis</button>
+      <button class="tab" data-tab="tab4">📊 Sensitivity &amp; PnL</button>
+    </div>
+
+    <!-- TAB 1 -->
+    <div class="tab-content active" id="tab1">
+      <div class="row cols-3-2">
+        <div class="chart-box" id="chartSurface" style="min-height:520px;"></div>
+        <div>
+          <div class="chart-box" id="chartCostBreakdown" style="min-height:320px;"></div>
+          <div class="note-box">
+            <b>Temporary</b> impact decays post-execution.<br>
+            <b>Permanent</b> impact shifts the price level irreversibly.<br>
+            <b>Timing Risk</b> is the variance cost of phased execution.
+          </div>
+        </div>
+      </div>
+      <div class="row cols-1">
+        <div class="chart-box" id="chartHeatmap" style="min-height:420px;"></div>
+      </div>
+    </div>
+
+    <!-- TAB 2 -->
+    <div class="tab-content" id="tab2">
+      <div class="row cols-1">
+        <div class="chart-box" id="chartPricePath" style="min-height:520px;"></div>
+      </div>
+      <div class="kpi-bar" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="kpi-card">
+          <div class="kpi-label">Strategy</div>
+          <div class="kpi-value" id="kpiStrategy">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Mean IS ($)</div>
+          <div class="kpi-value" id="kpiMeanIS">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">5th Pct IS ($)</div>
+          <div class="kpi-value" id="kpiP5IS">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3 -->
+    <div class="tab-content" id="tab3">
+      <div class="row cols-1">
+        <div class="chart-box" id="chartModelComparison" style="min-height:340px;"></div>
+      </div>
+      <div class="note-box">
+        <span class="legend-dot" style="background:#f5a623;"></span><b>Almgren-Chriss √</b> — industry standard for institutional blocks.<br>
+        <span class="legend-dot" style="background:#00d4ff;"></span><b>Kyle λ (Linear)</b> — linear model from Kyle 1985; better for smaller orders.<br>
+        <span class="legend-dot" style="background:#00e676;"></span><b>3/5 Power Law</b> — empirical fit to institutional data; between linear and √.<br>
+        <span class="legend-dot" style="background:#b388ff;"></span><b>Temporary Only</b> — intraday reversion component.<br>
+        <span class="legend-dot" style="background:#ff5252;"></span><b>Permanent Only</b> — irreversible price shift.
+      </div>
+      <div class="section-label" style="margin-top:16px;">Model Estimates</div>
+      <div class="kpi-bar" id="modelEstimates" style="grid-template-columns: repeat(5, 1fr);"></div>
+    </div>
+
+    <!-- TAB 4 -->
+    <div class="tab-content" id="tab4">
+      <div class="row cols-1">
+        <div class="chart-box" id="chartSensitivity" style="min-height:340px;"></div>
+      </div>
+      <div class="row cols-1">
+        <div class="chart-box" id="chartPnL" style="min-height:320px;"></div>
+      </div>
+    </div>
+
+    <div class="footer">Market Impact Simulator · Almgren-Chriss Framework · © 2026</div>
+
+  </main>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
